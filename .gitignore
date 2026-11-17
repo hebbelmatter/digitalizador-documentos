@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Documentos de postulantes: datos personales, NUNCA subirlos a GitHub
+salida/
+entrada/
+documentos/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.tif
+*.tiff
+resumen.csv
+.procesados.json
+
+# Sistema
+.DS_Store
+Thumbs.db
