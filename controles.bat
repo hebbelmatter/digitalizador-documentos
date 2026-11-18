@@ -1,14 +1,15 @@
 @echo off
 rem Doble clic (Windows) para digitalizar comprobantes y consolidar la lista de espera.
 cd /d "%~dp0"
-if not exist .venv (
-  echo Preparando el programa por primera vez...
+rem Se usa .venv\Scripts\python.exe directamente: sigue funcionando si se mueve la carpeta.
+set "PY=%~dp0.venv\Scripts\python.exe"
+"%PY%" -c "import controles.cli, pandas, pytesseract, fitz" 2>nul
+if errorlevel 1 (
+  echo Preparando el programa ^(solo la primera vez o si se movio la carpeta^)...
+  if exist .venv rmdir /s /q .venv
   python -m venv .venv
-  call .venv\Scripts\activate
-  python -m pip install --upgrade pip
-  pip install -r requirements.txt
-) else (
-  call .venv\Scripts\activate
+  "%PY%" -m pip install --upgrade pip
+  "%PY%" -m pip install -r requirements.txt
 )
 echo.
 echo 1) Digitalizar comprobantes (PDF -^> revision.xlsx)
@@ -18,14 +19,14 @@ if "%op%"=="1" goto digitalizar
 goto consolidar
 
 :digitalizar
-set /p entrada=Carpeta con los PDF: 
-python -m controles digitalizar %entrada% -o salida_controles
+set /p entrada=Carpeta o PDF: 
+"%PY%" -m controles digitalizar %entrada% -o salida_controles
 goto fin
 
 :consolidar
 set /p wf=Excel de Workflow (Controles_AAAA-MM-DD.xlsx): 
 set /p ag=Carpeta con los reportes de agenda: 
-python -m controles consolidar salida_controles\revision.xlsx --workflow %wf% --agenda %ag% -o salida_controles
+"%PY%" -m controles consolidar salida_controles\revision.xlsx --workflow %wf% --agenda %ag% -o salida_controles
 start "" salida_controles
 
 :fin

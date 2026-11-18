@@ -1,13 +1,10 @@
 #!/bin/bash
 # Doble clic para abrir el digitalizador en macOS (o ./iniciar.command en Linux).
 cd "$(dirname "$0")"
-if [ ! -d .venv ]; then
-  echo "Preparando el programa por primera vez..."
-  python3 -m venv .venv
-  source .venv/bin/activate
-  pip install --upgrade pip
-  pip install -r requirements.txt
-else
-  source .venv/bin/activate
+PY="$PWD/.venv/bin/python"
+if ! "$PY" -c "import digitalizador, flask" 2>/dev/null; then
+  echo "Preparando el programa (sólo la primera vez o si se movió la carpeta)..."
+  rm -rf .venv
+  python3 -m venv .venv && "$PY" -m pip install --upgrade pip && "$PY" -m pip install -r requirements.txt
 fi
-python -m digitalizador web
+"$PY" -m digitalizador web
