@@ -18,6 +18,11 @@ dependencies = [
   "PyMuPDF>=1.23",
   "Flask>=3.0",
   "pillow-heif>=0.16",
+  "pandas>=2.0",
+  "openpyxl>=3.1",
+  "python-calamine>=0.2",
+  "python-dateutil>=2.8",
+  "lxml>=4.9",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +30,7 @@ dev = ["pytest>=7"]
 
 [project.scripts]
 digitalizar = "digitalizador.cli:main"
+controles = "controles.cli:main"
 
 [tool.setuptools]
-packages = ["digitalizador"]
+packages = ["digitalizador", "controles"]

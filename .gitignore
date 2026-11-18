@@ -18,6 +18,12 @@ documentos/
 *.tif
 *.tiff
 resumen.csv
+
+# Controles en papel: planillas con RUT y datos clínicos
+salida_controles/
+*.xlsx
+*.xls
+*.csv
 .procesados.json
 
 # Sistema
