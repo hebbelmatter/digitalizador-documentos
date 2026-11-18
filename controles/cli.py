@@ -44,7 +44,7 @@ def _cmd_consolidar(a: argparse.Namespace) -> int:
     for estado, n in Counter(c.estado for c in controles).most_common():
         print(f"   {estado:<12} {n}")
     print(f"   En lista de espera: {sum(c.estado in EN_LISTA for c in controles)}")
-    if workflow is not None:
+    if a.consolidado and workflow is not None:
         c = escribir_consolidado(controles, workflow, a.salida / "Lista_espera_controles_CONSOLIDADA.xlsx",
                                  a.workflow.name)
         print(f"✔ {c}")
@@ -78,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--workflow", type=Path, help="Excel de controles exportado de Workflow (Controles_AAAA-MM-DD.xlsx)")
     c.add_argument("--agenda", type=Path, nargs="*", default=[],
                    help="carpetas o archivos de reportes de agenda (HCVB_ext_*.xls o CSV del extractor de agenda)")
+    c.add_argument("--consolidado", action="store_true",
+                   help="generar también Lista_espera_controles_CONSOLIDADA.xlsx (Workflow + papel)")
     c.add_argument("--especialidad", help="especialidad a usar cuando el Local del comprobante no la indica")
     c.add_argument("--especialidades", type=Path, help=AYUDA_CSV)
     c.add_argument("-o", "--salida", type=Path, default=Path("salida_controles"))

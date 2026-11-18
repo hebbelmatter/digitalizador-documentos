@@ -177,16 +177,15 @@ Resultado de cada control en papel:
 | REEMPLAZADA | El paciente tiene un comprobante en papel más reciente | No |
 | NO REQUIERE | La indicación dice alta, ingreso a LEQ o comprobante anulado | No |
 
-Se generan dos archivos en `salida_controles/`:
+Se genera **`salida_controles/Controles_papel_digitalizados.xlsx`**, con estas hojas:
 
-1. **`Controles_papel_digitalizados.xlsx`**, con estas hojas:
-   - *Resumen* (con fórmulas)
-   - *Digitalizados* (todos los comprobantes)
-   - *Lista de espera* (sólo PENDIENTE y AGENDADA, con las 12 columnas de Workflow)
-   - *Cruce atenciones*
-   - *Detalle digitalización*
-   - *Sin RUN o sin fecha*, si hay comprobantes incompletos
-2. **`Lista_espera_controles_CONSOLIDADA.xlsx`**: Workflow + controles en papel en lista de espera, con la columna *Origen* y un resumen por especialidad y por profesional.
+- *Resumen* (con fórmulas, por estado, especialidad y profesional)
+- *Digitalizados* (todos los comprobantes, con las 12 columnas de Workflow y el resultado del cruce)
+- *Lista de espera* (sólo PENDIENTE y AGENDADA, con las 12 columnas de Workflow)
+- *Cruce atenciones*
+- *Sin RUN o sin fecha* (comprobantes que no se pudieron cruzar por datos incompletos)
+
+Con `--consolidado` se genera además `Lista_espera_controles_CONSOLIDADA.xlsx`: Workflow + controles en papel en lista de espera, con la columna *Origen* y un resumen por especialidad y por profesional.
 
 ### Especialidades
 

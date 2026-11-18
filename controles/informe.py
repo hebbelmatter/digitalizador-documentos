@@ -1,9 +1,9 @@
 """Escritura de los Excel finales.
 
 * ``Controles_papel_digitalizados.xlsx``: Resumen, Digitalizados (todos),
-  Lista de espera, Cruce atenciones y Detalle digitalización.
-* ``Lista_espera_controles_CONSOLIDADA.xlsx``: Workflow + controles en papel
-  pendientes, con la columna Origen y un resumen con fórmulas.
+  Lista de espera, Cruce atenciones y Sin RUN o sin fecha.
+* ``Lista_espera_controles_CONSOLIDADA.xlsx`` (opcional, ``--consolidado``):
+  Workflow + controles en papel pendientes, con la columna Origen.
 """
 
 from __future__ import annotations
@@ -76,18 +76,10 @@ def escribir_digitalizados(controles: list[Control], destino: Path, incompletas:
                    c.fuente or None, c.cobertura, c.detalle_citas or None])
     _formato(cr, [14, 36, 30, 14, 14, 42, 12, 14, 30, 26, 34, 80], (3, 4, 7))
 
-    de = wb.create_sheet("Detalle digitalización")
-    de.append(["Rut Paciente", "Paciente", "Fecha Atención", "Archivo", "Página", "Otras copias escaneadas",
-               "Indicación manuscrita", "Criterio Próximo Control", "Anotaciones de contacto"])
-    for c in controles:
-        de.append([c.run, c.nombre, c.fecha, c.archivo, c.pagina, ", ".join(c.copias) or None,
-                   c.indicacion or None, c.criterio, c.anotaciones or None])
-    _formato(de, [14, 36, 14, 30, 8, 22, 50, 32, 70], (2,))
-
-    if incompletas:
+    if True:  # siempre presente, aunque quede vacía
         inc = wb.create_sheet("Sin RUN o sin fecha")
         inc.append(["ID", "Archivo", "Página", "RUN leído", "Nombre", "Fecha citación", "Indicación manuscrita"])
-        for f in incompletas:
+        for f in incompletas or []:
             inc.append([f.get("ID"), f.get("Archivo"), f.get("Página"), f.get("run"), f.get("nombre"),
                         f.get("Fecha citación"), f.get("Indicación manuscrita")])
         _formato(inc, [30, 30, 8, 14, 34, 14, 50])
