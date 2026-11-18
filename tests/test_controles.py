@@ -128,3 +128,28 @@ def test_cruce_por_especialidad():
     # La cita y el control de cardiología no cuentan; el papel de trauma no reemplaza al de neurocirugía.
     assert {c.especialidad: c.estado for c in controles} == {"TRAUMATOLOGÍA": "PENDIENTE",
                                                               "NEUROCIRUGÍA": "PENDIENTE"}
+
+
+def test_digitalizar_por_partes(tmp_path, monkeypatch):
+    """Agregar PDF en varias vueltas conserva lo anterior y omite lo ya leído."""
+    from pathlib import Path
+
+    from controles import digitalizar as dg
+
+    leidos = []
+
+    def filas_falsas(doc, n_pag, img, *a):
+        leidos.append(doc.name)
+        return [{"ID": f"{doc.stem}|{n_pag}|1", "Archivo": doc.name, "Página": n_pag, "RUN": "11111111-1"}]
+
+    monkeypatch.setattr(dg.ocr, "configurar_tesseract", lambda: None)
+    monkeypatch.setattr(dg.cargar, "cargar_paginas", lambda doc, dpi: [None, None])
+    monkeypatch.setattr(dg, "_filas_de_pagina", filas_falsas)
+    salida = tmp_path / "salida"
+    monkeypatch.setattr(dg.cargar, "listar_documentos", lambda e: [Path("a.pdf")])
+    dg.digitalizar(Path("x"), salida, avisar=lambda *_: None)
+    monkeypatch.setattr(dg.cargar, "listar_documentos", lambda e: [Path("a.pdf"), Path("b.pdf")])
+    dg.digitalizar(Path("x"), salida, avisar=lambda *_: None)
+    assert leidos == ["a.pdf", "a.pdf", "b.pdf", "b.pdf"]  # "a.pdf" no se volvió a leer
+    ids = [f["ID"] for f in dg._leer_revision_existente(salida / "revision.xlsx").values()]
+    assert ids == ["a|1|1", "a|2|1", "b|1|1", "b|2|1"]

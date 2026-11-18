@@ -13,8 +13,8 @@ echo "1) Digitalizar comprobantes (PDF -> revision.xlsx)"
 echo "2) Consolidar (revision.xlsx + Workflow + agenda -> Excel final)"
 read -p "Opción: " op
 if [ "$op" = "1" ]; then
-  read -p "Carpeta con los PDF (arrástrala aquí): " entrada
-  python -m controles digitalizar "$(eval echo $entrada)" -o salida_controles
+  read -p "Carpeta o PDF (arrástralo aquí y presiona Enter): " entrada
+  caffeinate -i python -m controles digitalizar "$(eval echo $entrada)" -o salida_controles  # no deja dormir al Mac
 else
   read -p "Excel de Workflow (Controles_AAAA-MM-DD.xlsx, arrástralo aquí): " wf
   read -p "Carpeta con los reportes de agenda (arrástrala aquí): " ag

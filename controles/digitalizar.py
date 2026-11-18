@@ -47,6 +47,7 @@ class OpcionesDigitalizar:
     transcribir_con_claude: bool = False
     modelo: str = "claude-sonnet-5-5"
     especialidades: Path | None = None  # CSV con reglas extra (ver especialidades.py)
+    reprocesar: bool = False  # volver a leer PDF que ya están en revision.xlsx
 
 
 def _orientar(img: Image.Image, idioma: str) -> tuple[Image.Image, str]:
@@ -117,9 +118,13 @@ def transcribir_con_claude(ruta_imagen: Path, modelo: str) -> dict:
 
 
 def _leer_revision_existente(ruta: Path) -> dict[str, dict]:
+    nuevo = ruta.with_name(ruta.stem + "_nuevo.xlsx")  # quedó de un guardado con Excel abierto
+    if nuevo.exists() and (not ruta.exists() or nuevo.stat().st_mtime > ruta.stat().st_mtime):
+        ruta = nuevo
     if not ruta.exists():
         return {}
-    ws = load_workbook(ruta).active
+    wb = load_workbook(ruta)
+    ws = wb["Revisión"] if "Revisión" in wb.sheetnames else wb.worksheets[0]
     cab = [c.value for c in ws[1]]
     filas = {}
     for fila in ws.iter_rows(min_row=2, values_only=True):
@@ -130,6 +135,14 @@ def _leer_revision_existente(ruta: Path) -> dict[str, dict]:
 
 
 def digitalizar(entrada: Path, salida: Path, opciones: OpcionesDigitalizar | None = None, avisar=print) -> Path:
+    """Procesa los PDF/imágenes de ``entrada`` y actualiza ``salida/revision.xlsx``.
+
+    * Los comprobantes que ya estaban en la planilla se conservan, aunque su
+      PDF no esté en ``entrada`` (así se pueden agregar carpetas por partes).
+    * Los PDF ya procesados se omiten, salvo con ``op.reprocesar``.
+    * La planilla se guarda después de cada PDF: si el proceso se corta, al
+      volver a correrlo sigue desde donde quedó.
+    """
     op = opciones or OpcionesDigitalizar()
     ocr.configurar_tesseract()
     salida.mkdir(parents=True, exist_ok=True)
@@ -137,46 +150,86 @@ def digitalizar(entrada: Path, salida: Path, opciones: OpcionesDigitalizar | Non
     carpeta_img.mkdir(exist_ok=True)
     ruta_rev = salida / "revision.xlsx"
     previas = _leer_revision_existente(ruta_rev)
+    # Filas por archivo, en el orden en que se fueron agregando.
+    por_archivo: dict[str, list[dict]] = {}
+    for f in previas.values():
+        por_archivo.setdefault(str(f.get("Archivo") or ""), []).append(f)
 
-    filas: list[dict] = []
     catalogo = Catalogo.con_archivo(op.especialidades)
-    documentos = [p for p in cargar.listar_documentos(entrada)]
-    for doc in documentos:
+    documentos = list(cargar.listar_documentos(entrada))
+    pendientes = [d for d in documentos if op.reprocesar or d.name not in por_archivo]
+    omitidos = len(documentos) - len(pendientes)
+    if omitidos:
+        avisar(f"{omitidos} archivo(s) ya estaban en revision.xlsx y se omiten "
+               "(usa --reprocesar para leerlos de nuevo).")
+    if not pendientes:
+        avisar("No hay archivos nuevos que procesar.")
+    for i, doc in enumerate(pendientes, start=1):
+        avisar(f"[{i}/{len(pendientes)}] {doc.name}: cargando…")
         paginas = cargar.cargar_paginas(doc, dpi=op.dpi)
-        avisar(f"{doc.name}: {len(paginas)} página(s)")
+        avisar(f"[{i}/{len(pendientes)}] {doc.name}: {len(paginas)} página(s)")
+        filas_doc = []
         for n_pag, img in enumerate(paginas, start=1):
-            derecha, texto = _orientar(img, op.idioma)
-            zona = _texto_zona_datos(derecha, op.idioma)
-            c = leer_comprobante(texto, zona)
-            n_comp = contar_comprobantes(texto)
-            for k in range(1, n_comp + 1):
-                fid = f"{doc.stem}|{n_pag}|{k}"
-                nombre_img = re.sub(r"[^\w\-]+", "_", f"{doc.stem}_p{n_pag:03d}") + ".jpg"
-                if k == 1:
-                    _imagen_revision(derecha, carpeta_img / nombre_img)
-                fila = {COL_ID: fid, "Archivo": doc.name, "Página": n_pag, "N° en página": k,
-                        "Imagen": f"imagenes/{nombre_img}"}
-                if k == 1:  # el OCR sólo es fiable para el primer comprobante de la hoja
-                    fila.update({"RUN": c.run, "RUN válido": "SÍ" if c.run_valido else "NO", "Nombre": c.nombre,
-                                 "Fecha citación": c.fecha_citacion, "Hora": c.hora, "Local": c.local,
-                                 "Especialidad": catalogo.de_texto(c.local) or None,
-                                 "Profesional": c.profesional, "Teleconsulta": "SÍ" if c.teleconsulta else ""})
-                previa = previas.get(fid, {})
-                for col in COLUMNAS_MANUALES:
-                    fila[col] = previa.get(col)
-                if op.transcribir_con_claude and k == 1 and not fila.get("Indicación manuscrita"):
-                    try:
-                        t = transcribir_con_claude(carpeta_img / nombre_img, op.modelo)
-                        fila["Indicación manuscrita"] = t.get("indicacion") or None
-                        fila["Anotaciones de contacto"] = t.get("anotaciones") or None
-                        fila["Fecha citación corregida"] = t.get("fecha_citacion_corregida") or None
-                        fila["RUN corregido"] = t.get("run_corregido") or None
-                    except Exception as e:  # noqa: BLE001 - se informa y se sigue
-                        avisar(f"  ⚠ no se pudo transcribir {fid}: {e}")
-                filas.append(fila)
-    _escribir_revision(ruta_rev, filas)
-    avisar(f"\n{len(filas)} comprobantes -> {ruta_rev}")
+            if n_pag % 10 == 0:
+                avisar(f"    página {n_pag} de {len(paginas)}")
+            filas_doc += _filas_de_pagina(doc, n_pag, img, op, catalogo, carpeta_img, previas, avisar)
+        del paginas
+        por_archivo[doc.name] = filas_doc
+        _guardar(ruta_rev, por_archivo, avisar)
+    if not pendientes and not ruta_rev.exists():
+        _guardar(ruta_rev, por_archivo, avisar)
+    total = sum(len(v) for v in por_archivo.values())
+    avisar(f"\n{total} comprobantes en {ruta_rev}")
     return ruta_rev
+
+
+def _filas_de_pagina(doc: Path, n_pag: int, img: Image.Image, op: OpcionesDigitalizar, catalogo: Catalogo,
+                     carpeta_img: Path, previas: dict[str, dict], avisar) -> list[dict]:
+    derecha, texto = _orientar(img, op.idioma)
+    zona = _texto_zona_datos(derecha, op.idioma)
+    c = leer_comprobante(texto, zona)
+    filas = []
+    for k in range(1, contar_comprobantes(texto) + 1):
+        fid = f"{doc.stem}|{n_pag}|{k}"
+        nombre_img = re.sub(r"[^\w\-]+", "_", f"{doc.stem}_p{n_pag:03d}") + ".jpg"
+        if k == 1:
+            _imagen_revision(derecha, carpeta_img / nombre_img)
+        fila = {COL_ID: fid, "Archivo": doc.name, "Página": n_pag, "N° en página": k,
+                "Imagen": f"imagenes/{nombre_img}"}
+        if k == 1:  # el OCR sólo es fiable para el primer comprobante de la hoja
+            fila.update({"RUN": c.run, "RUN válido": "SÍ" if c.run_valido else "NO", "Nombre": c.nombre,
+                         "Fecha citación": c.fecha_citacion, "Hora": c.hora, "Local": c.local,
+                         "Especialidad": catalogo.de_texto(c.local) or None,
+                         "Profesional": c.profesional, "Teleconsulta": "SÍ" if c.teleconsulta else ""})
+        previa = previas.get(fid, {})
+        for col in COLUMNAS_MANUALES:
+            fila[col] = previa.get(col)
+        if op.transcribir_con_claude and k == 1 and not fila.get("Indicación manuscrita"):
+            try:
+                t = transcribir_con_claude(carpeta_img / nombre_img, op.modelo)
+                fila["Indicación manuscrita"] = t.get("indicacion") or None
+                fila["Anotaciones de contacto"] = t.get("anotaciones") or None
+                fila["Fecha citación corregida"] = t.get("fecha_citacion_corregida") or None
+                fila["RUN corregido"] = t.get("run_corregido") or None
+            except Exception as e:  # noqa: BLE001 - se informa y se sigue
+                avisar(f"  ⚠ no se pudo transcribir {fid}: {e}")
+        filas.append(fila)
+    return filas
+
+
+def _guardar(ruta: Path, por_archivo: dict[str, list[dict]], avisar) -> None:
+    """Guarda la planilla sin dejarla a medio escribir. Si está abierta en
+    Excel (Windows la bloquea), avisa y lo vuelve a intentar con el próximo PDF."""
+    filas = [f for fs in por_archivo.values() for f in fs]
+    tmp = ruta.with_name(ruta.stem + ".tmp.xlsx")
+    _escribir_revision(tmp, filas)
+    try:
+        os.replace(tmp, ruta)
+    except PermissionError:
+        respaldo = ruta.with_name(ruta.stem + "_nuevo.xlsx")
+        os.replace(tmp, respaldo)
+        avisar(f"  ⚠ {ruta.name} está abierto en Excel; se guardó en {respaldo.name}. "
+               f"Ciérralo y el próximo guardado lo actualizará.")
 
 
 def _escribir_revision(ruta: Path, filas: list[dict]) -> None:

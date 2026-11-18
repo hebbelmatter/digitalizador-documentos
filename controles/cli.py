@@ -16,7 +16,7 @@ from .informe import escribir_consolidado, escribir_digitalizados
 
 def _cmd_digitalizar(a: argparse.Namespace) -> int:
     op = OpcionesDigitalizar(dpi=a.dpi, transcribir_con_claude=a.con_claude, modelo=a.modelo,
-                             especialidades=a.especialidades)
+                             especialidades=a.especialidades, reprocesar=a.reprocesar)
     if a.tesseract:
         import pytesseract
         pytesseract.pytesseract.tesseract_cmd = a.tesseract
@@ -71,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
                         "envía las imágenes fuera del computador)")
     d.add_argument("--modelo", default="claude-sonnet-5-5")
     d.add_argument("--especialidades", type=Path, help=AYUDA_CSV)
+    d.add_argument("--reprocesar", action="store_true",
+                   help="volver a leer los PDF que ya están en revision.xlsx (conserva lo completado a mano)")
     d.set_defaults(func=_cmd_digitalizar)
 
     c = sub.add_parser("consolidar", help="revision.xlsx + Workflow + agenda -> Excel final")

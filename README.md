@@ -146,7 +146,13 @@ python -m controles digitalizar "CARPETA_CON_PDF" -o salida_controles
 | Anotaciones de contacto | Llamados, `NSP`, fonos nuevos, etc. |
 | Excluir (S/N) | `S` para hojas sin paciente o que no se deben contar |
 
-Si vuelves a correr `digitalizar` (por ejemplo, al agregar PDF nuevos), lo que ya completaste se conserva.
+**Muchos PDF o por partes:** la planilla se guarda después de cada PDF y en pantalla se ve el avance (`[37/200] archivo.pdf`). Si vuelves a correr `digitalizar`:
+
+- los PDF que ya están en `revision.xlsx` se omiten, así que si el proceso se cortó, sigue desde donde quedó;
+- los comprobantes de vueltas anteriores se conservan aunque ahora le des otra carpeta, de modo que puedes procesar una carpeta por médico;
+- lo que completaste a mano nunca se borra. Con `--reprocesar` se vuelven a leer los PDF ya procesados, pero se mantienen las columnas amarillas.
+
+En el Mac, para tandas largas usa `caffeinate -i python -m controles digitalizar …` y el computador no se dormirá mientras trabaja (`controles.command` ya lo hace).
 
 **Opcional: lectura automática del manuscrito.** Con `--con-claude`, la indicación manuscrita se transcribe con la API de Claude. Requiere la variable `ANTHROPIC_API_KEY`. Advertencia: esta opción **envía las imágenes, que contienen datos del paciente, fuera del computador**, así que úsala sólo si la institución lo autoriza. Aunque la uses, revisa las lecturas que quedan marcadas con `(?)`.
 
